@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "spreadrooms",
+	"version": "${version}",
+	"name": "Spreadrooms",
+	"description": "They are spreading...",
+	"authors": [
+		"Sawyer128"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/spreadrooms/icon.png",
+	"environment": "server",
+	"entrypoints": {
+		"main": [
+			"cool.place.Spreadrooms"
+		],
+		"client": [
+			"cool.place.client.SpreadroomsClient"
+		]
+	},
+	"mixins": [
+		"spreadrooms.mixins.json",
+		{
+			"config": "spreadrooms.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
