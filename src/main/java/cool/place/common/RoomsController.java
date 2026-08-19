@@ -21,10 +21,10 @@ public class RoomsController {
     private static int spreadTimer = 0;
 
     public static final List<Direction> directions = new ArrayList<>();
+
     public static final List<Room> rooms = new ArrayList<>();
     public static final List<Room> newRooms = new ArrayList<>();
     public static final List<Room> completeRooms = new ArrayList<>();
-
     public static final List<Integer> roomsPlanes = new ArrayList<>();
 
     public static boolean begun = false;
@@ -38,36 +38,57 @@ public class RoomsController {
         directions.add(Direction.WEST);
         directions.add(Direction.DOWN);
         directions.add(Direction.UP);
+
+        center = null;
+        origin = null;
     }
 
     public static void start(MinecraftServer server, Player player) {
 
         begun = true;
-        center = player.blockPosition();
 
-        Level overworld = server.getLevel(ServerLevel.OVERWORLD);
+        if (center == null || origin == null) {
+
+            Level overworld = server.getLevel(ServerLevel.OVERWORLD);
+
+            center = player.blockPosition();
+            origin = new BlockPos(center.getX() + RoomsConfig.get().areaFromCenter, -64, center.getZ() + RoomsConfig.get().areaFromCenter);
+
+            roomsPlanes.add(-64);
+
+            Spreadrooms.LOGGER.info("Origin created at " + origin.getX() + " " + origin.getY() + " " + origin.getZ());
+
+            List<RoomFeature> originFeatures = new ArrayList<>();
+            originFeatures.add(RoomFeature.LIGHT);
+            rooms.add(new Room(origin, RoomsConfig.get().defaultRoomSize, originFeatures));
+
+            if (overworld != null) {
+                overworld.setBlock(origin, RoomFeature.FLOOR.getState(), 3);
+            }
+
+        }
 
         server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "worldborder center " + center.getX() + " " + center.getZ());
-        server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "worldborder set " + RoomsConfig.get().areaFromCenter*2);
-
-        origin = new BlockPos(center.getX() + RoomsConfig.get().areaFromCenter, -64, center.getZ() + RoomsConfig.get().areaFromCenter);
-        roomsPlanes.add(-64);
-        List<RoomFeature> originFeatures = new ArrayList<>();
-        originFeatures.add(RoomFeature.LIGHT);
-        rooms.add(new Room(origin, new Room.Size(6, 6, 6), originFeatures));
-
-        if (overworld != null) {
-            Spreadrooms.LOGGER.info("Level found, creating origin.");
-            overworld.setBlock(origin, RoomFeature.FLOOR.getState(), 3);
-        }
+        server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "worldborder set " + RoomsConfig.get().areaFromCenter * 2);
 
     }
 
-    public static void stop(MinecraftServer server, Player player) {
+    public static void stop() {
         begun = false;
+        spreadTimer = 0;
+
+    }
+
+    public static void reset(MinecraftServer server) {
         center = null;
         origin = null;
+        server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "worldborder center 0 0");
+        server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "worldborder set 29999984");
         spreadTimer = 0;
+        rooms.clear();
+        newRooms.clear();
+        completeRooms.clear();
+        roomsPlanes.clear();
     }
 
     public static void tickSpread(MinecraftServer server) {

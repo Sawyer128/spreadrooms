@@ -1,6 +1,5 @@
 package cool.place.common;
 
-import cool.place.Spreadrooms;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
@@ -53,6 +52,9 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
         if (wallsSpecial == 11) newFeatures.add(RoomFeature.MOSAIC);
         if (wallsSpecial == 12) newFeatures.add(RoomFeature.GREEN);
 
+        int floorsSpecial = random.nextInt(10);
+        if (floorsSpecial <= 2) newFeatures.add(RoomFeature.CARPET);
+
         /*int faceMissing = random.nextInt(40);
         if (faceMissing == 1) newFeatures.add(RoomFeature.W_WALL);
         if (faceMissing == 2) newFeatures.add(RoomFeature.S_WALL);
@@ -67,12 +69,22 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
         int superDeep = 0;
         int superWide = 0;
         int superLong = 0;
-        int randWidth = (random.nextInt(8) - 1) * 2;
-        int randLength = (random.nextInt(8) - 1) * 2;
-        int randHeight = random.nextInt(2) * 2;
+        int randWidth = (random.nextInt(RoomsConfig.get().sizeVariation.x + 1) - RoomsConfig.get().sizeVariationShift.x) * RoomsConfig.get().sizeVariationFactor.x;
+        int randLength = (random.nextInt(RoomsConfig.get().sizeVariation.z + 1) - RoomsConfig.get().sizeVariationShift.z) * RoomsConfig.get().sizeVariationFactor.z;
+        int randHeight = (random.nextInt(RoomsConfig.get().sizeVariation.y + 1) - RoomsConfig.get().sizeVariationShift.y) * RoomsConfig.get().sizeVariationFactor.y;
         //if (random.nextInt(101) == 100) superDeep = 40;
         //if (random.nextInt(101) == 100) superLong = 30;
         //if (random.nextInt(101) == 100) superWide = 30;
+
+        int pipeRoom = random.nextInt(5);
+        if (pipeRoom == 1) {
+            newFeatures.clear();
+            newFeatures.addAll(List.of(RoomFeature.BASEBRICKS, RoomFeature.BASESTONE, RoomFeature.HARD_FLOOR, RoomFeature.HARD_CEILING, RoomFeature.LARGE_BRICKS, RoomFeature.E_PIPES, RoomFeature.E_CHAINS));
+            randHeight = 3;
+            randLength = 25;
+            randWidth = -2;
+        }
+
         Size newSize = new Size(RoomsConfig.get().defaultRoomSize.x + randWidth + superWide, RoomsConfig.get().defaultRoomSize.y + randHeight + superDeep, RoomsConfig.get().defaultRoomSize.z + randLength + superLong);
 
         if (canFit(pos, newSize)) return new Room(pos, newSize, newFeatures);
@@ -223,9 +235,10 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
                 origin,
                 origin.offset(size.x*-1, size.y-1, size.z*-1))) {
 
-            if (!level.getBlockState(pos).is(getStateAt(pos.immutable()).getBlock()) && !getStateAt(pos.immutable()).is(Blocks.AIR)) {
+            if (!level.getBlockState(pos).is(getStateAt(pos.immutable()).getBlock())) {
+                if (!RoomsConfig.get().strictGeneration && getStateAt(pos.immutable()).is(Blocks.AIR)) return true;
+                else return false;
                 //Spreadrooms.LOGGER.info("FALSE " + pos + " " + level.getBlockState(pos));
-                return false;
             }
         }
 
@@ -250,6 +263,8 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
         if (pos.getY() == origin.getY()) {
             if (!features.isEmpty()) {
                 if (features.contains(RoomFeature.NO_FLOOR)) return RoomFeature.NO_FLOOR.getState();
+                if (features.contains(RoomFeature.HARD_FLOOR)) return RoomFeature.HARD_FLOOR.getState();
+                if (features.contains(RoomFeature.CARPET)) return RoomFeature.CARPET.getDefaultState();
             }
             return RoomFeature.FLOOR.getState();
         }
@@ -257,8 +272,16 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
         if (pos.getY() == origin.getY() + size.y) {
             if (!features.isEmpty()) {
                 if (features.contains(RoomFeature.NO_CEILING)) return RoomFeature.NO_CEILING.getState();
+                if (features.contains(RoomFeature.HARD_CEILING)) return RoomFeature.HARD_CEILING.getState();
             }
             return RoomFeature.CEILING.getState();
+        }
+
+        if (!features.isEmpty()) {
+            if (features.contains(RoomFeature.E_PIPES) && pos.getX() == origin.getX() - 1) {
+                if (pos.getY() == origin.getY() + 2) return RoomFeature.E_PIPES.getDefaultState();
+                if (pos.getY() == origin.getY() + 3 && pos.getZ() == origin.getZ()) return RoomFeature.E_PIPES.getDefaultState();
+            }
         }
 
         if (RoomsConfig.get().connectRooms && !((pos.getX() == origin.getX() - size.x && pos.getZ() == origin.getZ()) || (pos.getX() == origin.getX() && pos.getZ() == origin.getZ() - size.z) || (pos.getX() == origin.getX() && pos.getZ() == origin.getZ()) || (pos.getX() == origin.getX() - size.x && pos.getZ() == origin.getZ() - size.z))) {
@@ -269,10 +292,13 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
         if ((pos.getZ() == origin.getZ() || pos.getZ() == origin.getZ() - size.z) || (pos.getX() == origin.getX() || pos.getX() == origin.getX() - size.x)) {
             if (!features.isEmpty()) {
                 if (features.contains(RoomFeature.BASEBOARDS) && pos.getY() == origin.getY() + 1) return RoomFeature.BASEBOARDS.getState();
+                if (features.contains(RoomFeature.BASESTONE) && (pos.getY() == origin.getY() + 1 || pos.getY() == origin.getY() + size.y - 1)) return RoomFeature.BASESTONE.getState();
+                if (features.contains(RoomFeature.BASEBRICKS) && (pos.getY() == origin.getY() + 2 || pos.getY() == origin.getY() + size.y - 2)) return RoomFeature.BASEBRICKS.getState();
                 if (features.contains(RoomFeature.MOSAIC)) return RoomFeature.MOSAIC.getState();
                 if (features.contains(RoomFeature.BAMBOO)) return RoomFeature.BAMBOO.getState();
-                if (features.contains(RoomFeature.GREEN)) return RoomFeature.GREEN.getState();
+                if (features.contains(RoomFeature.GREEN)) return RoomFeature.GREEN.getDefaultState();
                 if (features.contains(RoomFeature.SMOOTH)) return RoomFeature.SMOOTH.getState();
+                if (features.contains(RoomFeature.LARGE_BRICKS)) return RoomFeature.LARGE_BRICKS.getState();
 
                 //remove corners from the empty walls
                 if (!((pos.getX() == origin.getX() - size.x && pos.getZ() == origin.getZ()) || (pos.getX() == origin.getX() && pos.getZ() == origin.getZ() - size.z) || (pos.getX() == origin.getX() && pos.getZ() == origin.getZ()) || (pos.getX() == origin.getX() - size.x && pos.getZ() == origin.getZ() - size.z))) {
@@ -284,6 +310,10 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
             }
 
             return RoomFeature.WALL.getState();
+        }
+
+        if (!features.isEmpty()) {
+            if ((features.contains(RoomFeature.E_CHAINS) && pos.getX() == origin.getX() - 1 && pos.getY() == origin.getY() + 3)) return RoomFeature.E_CHAINS.getDefaultState();
         }
 
         return RoomFeature.NONE.getState();

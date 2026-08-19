@@ -28,28 +28,48 @@ public class RoomsCommands {
                                     .then(
                                             Commands.literal("stop").executes(context -> {
                                                 if (!RoomsController.begun) { context.getSource().sendFailure(Component.literal("They have not begun.")); return 0; }
-                                                context.getSource().sendSuccess(() -> Component.literal("They die."), false);
-                                                if (context.getSource().getPlayer() != null) RoomsController.stop(context.getSource().getServer(), context.getSource().getPlayer());
+                                                context.getSource().sendSuccess(() -> Component.literal("They cease."), false);
+                                                if (context.getSource().getPlayer() != null) RoomsController.stop();
                                                 return 1;
                                             })
                                     )
                                     .then(
-                                            Commands.literal("rooms_count").executes(context -> {
-                                                if (!RoomsController.begun) { context.getSource().sendFailure(Component.literal("They have not begun.")); return 0; }
-                                                context.getSource().sendSuccess(() -> Component.literal(
-                                                        "Ticking rooms: " + RoomsController.rooms.size() + ". New rooms: " + RoomsController.newRooms.size() + ". Completed rooms: " + RoomsController.completeRooms.size() + "."
-                                                ), false);
+                                            Commands.literal("reset").executes(context -> {
+                                                if (RoomsController.begun) { context.getSource().sendFailure(Component.literal("Cannot reset while rooms are spreading.")); return 0; }
+                                                context.getSource().sendSuccess(() -> Component.literal("All rooms removed, worldborder reset."), false);
+                                                if (context.getSource().getPlayer() != null) RoomsController.reset(context.getSource().getServer());
                                                 return 1;
                                             })
                                     )
                                     .then(
-                                            Commands.literal("rooms_ticking").executes(context -> {
-                                                if (!RoomsController.begun) { context.getSource().sendFailure(Component.literal("They have not begun.")); return 0; }
-                                                context.getSource().sendSuccess(() -> Component.literal(
-                                                        "Ticking rooms: " + RoomsController.rooms + "."
-                                                ), false);
+                                            Commands.literal("reload").executes(context -> {
+                                                if (RoomsController.begun) { context.getSource().sendFailure(Component.literal("Cannot reload config while rooms are spreading.")); return 0; }
+                                                if (context.getSource().getPlayer() != null) RoomsConfig.reload();
+                                                context.getSource().sendSuccess(() -> Component.literal("Config reloaded."), false);
                                                 return 1;
                                             })
+                                    )
+                                    .then(
+                                            Commands.literal("debug")
+
+                                            .then(
+                                                    Commands.literal("rooms_count").executes(context -> {
+                                                        if (!RoomsController.begun) { context.getSource().sendFailure(Component.literal("They have not begun.")); return 0; }
+                                                        context.getSource().sendSuccess(() -> Component.literal(
+                                                             "Ticking rooms: " + RoomsController.rooms.size() + ". New rooms: " + RoomsController.newRooms.size() + ". Completed rooms: " + RoomsController.completeRooms.size() + "."
+                                                        ), false);
+                                                        return 1;
+                                                    })
+                                            )
+                                            .then(
+                                                    Commands.literal("rooms_ticking").executes(context -> {
+                                                        if (!RoomsController.begun) { context.getSource().sendFailure(Component.literal("They have not begun.")); return 0; }
+                                                        context.getSource().sendSuccess(() -> Component.literal(
+                                                                "Ticking rooms: " + RoomsController.rooms + "."
+                                                        ), false);
+                                                        return 1;
+                                                    })
+                                            )
                                     )
                     );
                 }
