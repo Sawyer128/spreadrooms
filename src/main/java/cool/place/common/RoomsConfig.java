@@ -11,14 +11,18 @@ public class RoomsConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final File CONFIG = new File("config/spreadrooms.json");
 
-    public int areaFromCenter = 100;
-    public int timeToSpread = 100;
-    public int timeToSpreadVariation = 20;
+    public int areaFromCenter = 50;
+    public int timeToSpread = 20;
+    public int timeToSpreadVariation = 0;
     public boolean timedSpread = false;
 
-    public int maxGenRooms = 10;
+    public boolean generateOnPlane = true;
+    public boolean connectRooms = true;
+    public int maxGenRooms = 5;
+    public Room.Size defaultRoomSize = new Room.Size(6, 4, 6);
 
-    public Room.Size defaultRoomSize = new Room.Size(6, 4, 8);
+    public boolean roomBlocking = true;
+    public Room.Size maxRoomSize = new Room.Size(8, 6, 8);
 
     private static RoomsConfig INSTANCE;
 
@@ -27,6 +31,7 @@ public class RoomsConfig {
         if (INSTANCE == null) { INSTANCE = load(); }
 
         return INSTANCE;
+
     }
 
 

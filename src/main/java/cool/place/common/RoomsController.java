@@ -7,7 +7,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Blocks;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,11 +25,11 @@ public class RoomsController {
     public static final List<Room> newRooms = new ArrayList<>();
     public static final List<Room> completeRooms = new ArrayList<>();
 
+    public static final List<Integer> roomsPlanes = new ArrayList<>();
 
     public static boolean begun = false;
     public static BlockPos center;
     public static BlockPos origin;
-    public static Room.Size defaultSize = new Room.Size(6, 4, 5);
 
     static{
         directions.add(Direction.NORTH);
@@ -52,6 +51,7 @@ public class RoomsController {
         server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "worldborder set " + RoomsConfig.get().areaFromCenter*2);
 
         origin = new BlockPos(center.getX() + RoomsConfig.get().areaFromCenter, -64, center.getZ() + RoomsConfig.get().areaFromCenter);
+        roomsPlanes.add(-64);
         List<RoomFeature> originFeatures = new ArrayList<>();
         originFeatures.add(RoomFeature.LIGHT);
         rooms.add(new Room(origin, new Room.Size(6, 6, 6), originFeatures));
@@ -84,28 +84,24 @@ public class RoomsController {
 
                 spreadTimer++;
 
-                Random random = new Random();
+                if (timeToSpreadVariation <= 0) { if (spreadTimer >= timeToSpread) { spreadTimer = 0; loopRooms(overworld, true); } }
+                else {
 
-                if (spreadTimer >= timeToSpread+(random.nextInt(timeToSpreadVariation*2)-timeToSpreadVariation)) {
+                    Random random = new Random();
 
-                    spreadTimer = 0;
-
-                    loopRooms(overworld, true);
-
+                    if (spreadTimer >= timeToSpread + (random.nextInt(timeToSpreadVariation * 2) - timeToSpreadVariation)) {
+                        spreadTimer = 0;
+                        loopRooms(overworld, true);
+                    }
                 }
-
             }
-
         }
-
     }
 
     private static void loopRooms(Level level, boolean createRooms) {
 
         for (Room room : rooms) {
             if (!completeRooms.contains(room)) {
-
-                if (room.isComplete(level)) Spreadrooms.LOGGER.info("Room complete!");
 
                 if (!room.isComplete(level)) room.spread(level, createRooms);
                 else completeRooms.add(room);

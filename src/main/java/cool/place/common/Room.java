@@ -3,16 +3,15 @@ package cool.place.common;
 import cool.place.Spreadrooms;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.material.Fluids;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.Stream;
 
 public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
 
@@ -22,19 +21,22 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
 
     public void spread(Level level, boolean createRooms) {
 
-        BlockPosStateBoolTriple result = search(level, origin, new ArrayList<>(), createRooms);
+        BlockPosStateBoolTriple result = null;
+        if (level.getBlockState(origin).is(getStateAt(origin).getBlock())) result = search(level, origin, new ArrayList<>(), createRooms);
+        else result = new BlockPosStateBoolTriple(origin, getStateAt(origin), false);
 
         if (result != null) {
 
             if (!result.outside) {
                 level.setBlock(result.pos, result.state, 3);
             } else {
-                createRoom(level, result.pos, result.state);
+                Room newRoom = createRoomProperties(result.pos);
+                if (newRoom != null) createRoom(newRoom, level);
             }
         }
     }
 
-    private void createRoom(Level level, BlockPos pos, BlockState state) {
+    private Room createRoomProperties(BlockPos pos) {
 
         List<RoomFeature> newFeatures = new ArrayList<>();
         Random random = new Random();
@@ -51,30 +53,112 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
         if (wallsSpecial == 11) newFeatures.add(RoomFeature.MOSAIC);
         if (wallsSpecial == 12) newFeatures.add(RoomFeature.GREEN);
 
-        int faceMissing = random.nextInt(20);
+        /*int faceMissing = random.nextInt(40);
         if (faceMissing == 1) newFeatures.add(RoomFeature.W_WALL);
         if (faceMissing == 2) newFeatures.add(RoomFeature.S_WALL);
         if (faceMissing == 3) newFeatures.add(RoomFeature.N_WALL);
         if (faceMissing == 4) newFeatures.add(RoomFeature.E_WALL);
         if (faceMissing == 5) newFeatures.add(RoomFeature.NO_CEILING);
-        if (faceMissing == 6) newFeatures.add(RoomFeature.NO_FLOOR);
+        if (faceMissing == 6) newFeatures.add(RoomFeature.NO_FLOOR);*/
 
         int structureSpecial = random.nextInt(5);
         if (structureSpecial == 1) newFeatures.add(RoomFeature.PILLARS);
 
-        int openingSpecial = random.nextInt(2);
-
         int superDeep = 0;
-        int randWidth = (random.nextInt(5) - 1) * 2;
-        int randLength = (random.nextInt(5) - 1) * 2;
-        if (random.nextInt(101) > 99) superDeep = 40;
-        Size newSize = new Size(RoomsConfig.get().defaultRoomSize.x + randWidth, RoomsConfig.get().defaultRoomSize.y + superDeep, RoomsConfig.get().defaultRoomSize.z + randLength);
+        int superWide = 0;
+        int superLong = 0;
+        int randWidth = (random.nextInt(8) - 1) * 2;
+        int randLength = (random.nextInt(8) - 1) * 2;
+        int randHeight = random.nextInt(2) * 2;
+        //if (random.nextInt(101) == 100) superDeep = 40;
+        //if (random.nextInt(101) == 100) superLong = 30;
+        //if (random.nextInt(101) == 100) superWide = 30;
+        Size newSize = new Size(RoomsConfig.get().defaultRoomSize.x + randWidth + superWide, RoomsConfig.get().defaultRoomSize.y + randHeight + superDeep, RoomsConfig.get().defaultRoomSize.z + randLength + superLong);
 
-        Room newRoom = new Room(pos, newSize, newFeatures);
-        if (canFit(pos, newSize)) {
-            level.setBlock(pos, state, 3);
-            RoomsController.newRooms.add(newRoom);
+        if (canFit(pos, newSize)) return new Room(pos, newSize, newFeatures);
+        else return null;
+    }
+
+    private static void createRoom(Room room, Level level) {
+
+        if (!RoomsConfig.load().roomBlocking) RoomsController.newRooms.add(room);
+        else {
+
+            int xCut = 0;
+            //int yCut = 0;
+            int zCut = 0;
+
+            int i = room.size.x;
+            while (i > RoomsConfig.get().maxRoomSize.x) {
+                xCut++;
+                i -= RoomsConfig.get().maxRoomSize.x;
+            }
+
+            /*i = room.size.y;
+            while (i > RoomsConfig.get().maxRoomSize.y) {
+               yCut++;
+                i -= RoomsConfig.get().maxRoomSize.y;
+            }*/
+
+            i = room.size.z;
+            while (i > RoomsConfig.get().maxRoomSize.z) {
+                zCut++;
+                i -= RoomsConfig.get().maxRoomSize.z;
+            }
+
+            if (xCut > 0 || zCut > 0) {
+                Size cut = new Size(xCut, 0, zCut);
+                List<Room> newRooms = cutRoom(cut, room, new ArrayList<>());
+                for (Room newRoom : newRooms) level.setBlock(newRoom.origin, RoomFeature.FLOOR.getState(), 3);
+                RoomsController.newRooms.addAll(newRooms);
+            } else {
+                level.setBlock(room.origin, RoomFeature.FLOOR.getState(), 3);
+                RoomsController.newRooms.add(room);
+            }
+
         }
+    }
+
+    private static List<Room> cutRoom(Size cut, Room room, List<Room> rooms) {
+
+        if (cut.x >= 1 && cut.z >= 1) {
+            rooms.add(new Room(room.origin, new Size(RoomsConfig.get().maxRoomSize.x, room.size.y, RoomsConfig.get().maxRoomSize.z), new ArrayList<>(Stream.concat(Stream.of(RoomFeature.N_WALL, RoomFeature.W_WALL), room.features.stream()).toList())));
+
+            Room newRoomX = new Room(new BlockPos(room.origin.getX() - RoomsConfig.get().maxRoomSize.x, room.origin.getY(), room.origin.getZ()), new Size(room.size.x - RoomsConfig.get().maxRoomSize.x, room.size.y, RoomsConfig.get().maxRoomSize.z), new ArrayList<>(Stream.concat(Stream.of(RoomFeature.E_WALL, RoomFeature.N_WALL), room.features.stream()).toList()));
+            Room newRoomZ = new Room(new BlockPos(room.origin.getX(), room.origin.getY(), room.origin.getZ() - RoomsConfig.get().maxRoomSize.z), new Size(RoomsConfig.get().maxRoomSize.x, room.size.y, room.size.z - RoomsConfig.get().maxRoomSize.z), new ArrayList<>(Stream.concat(Stream.of(RoomFeature.S_WALL, RoomFeature.W_WALL), room.features.stream()).toList()));
+            Room newRoom = new Room(new BlockPos(room.origin.getX() - RoomsConfig.get().maxRoomSize.x, room.origin.getY(), room.origin.getZ() - RoomsConfig.get().maxRoomSize.z), new Size(room.size.x - RoomsConfig.get().maxRoomSize.x, room.size.y, room.size.z - RoomsConfig.get().maxRoomSize.z), new ArrayList<>(Stream.concat(Stream.of(RoomFeature.N_WALL, RoomFeature.E_WALL), room.features.stream()).toList()));
+
+            if (cut.x == 1 && cut.z == 1) rooms.addAll(List.of(newRoomX, newRoomZ, newRoom));
+            else {
+                rooms.addAll(cutRoom(new Size(cut.x - 1, 0, 0), newRoomX, new ArrayList<>()));
+                rooms.addAll(cutRoom(new Size(0, 0, cut.z - 1), newRoomZ, new ArrayList<>()));
+                rooms.addAll(cutRoom(new Size(cut.x - 1, 0, cut.z - 1), newRoom, new ArrayList<>()));
+            }
+        }
+
+        if (cut.x >= 1 && cut.z == 0) {
+            rooms.add(new Room(room.origin, new Size(RoomsConfig.get().maxRoomSize.x, room.size.y, room.size.z), new ArrayList<>(Stream.concat(Stream.of(RoomFeature.E_WALL), room.features.stream()).toList())));
+
+            Room newRoom = new Room(new BlockPos(room.origin.getX() - RoomsConfig.get().maxRoomSize.x, room.origin.getY(), room.origin.getZ()), new Size(room.size.x - RoomsConfig.get().maxRoomSize.x, room.size.y, room.size.z), new ArrayList<>(Stream.concat(Stream.of(RoomFeature.W_WALL), room.features.stream()).toList()));
+
+            if (cut.x == 1) rooms.add(newRoom);
+            else rooms.addAll(cutRoom(new Size(cut.x -1, 0, 0), newRoom, new ArrayList<>()));
+
+
+        }
+
+        if (cut.x == 0 && cut.z >= 1) {
+            rooms.add(new Room(room.origin, new Size(room.size.x, room.size.y, RoomsConfig.get().maxRoomSize.z), new ArrayList<>(Stream.concat(Stream.of(RoomFeature.N_WALL), room.features.stream()).toList())));
+
+            Room newRoom = new Room(new BlockPos(room.origin.getX(), room.origin.getY(), room.origin.getZ() - RoomsConfig.get().maxRoomSize.z), new Size(room.size.x, room.size.y, room.size.z - RoomsConfig.get().maxRoomSize.z), new ArrayList<>(Stream.concat(Stream.of(RoomFeature.S_WALL), room.features.stream()).toList()));
+
+            if (cut.z == 1) rooms.add(newRoom);
+            else rooms.addAll(cutRoom(new Size(0, 0, cut.z - 1), newRoom, new ArrayList<>()));
+
+
+        }
+
+        return rooms;
 
     }
 
@@ -103,10 +187,14 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
                         return search(level, potentialPos, searchedBlocks, createRooms);
                     }
 
-                } else if (!contains(potentialPos) && createRooms && canFit(potentialPos, RoomsController.defaultSize)) {
-
+                } else if (!contains(potentialPos) && createRooms && canFit(potentialPos, RoomsConfig.get().defaultRoomSize)) {
+                    if (RoomsConfig.get().generateOnPlane) {
+                        if (RoomsController.roomsPlanes.contains(potentialPos.getY())) return new BlockPosStateBoolTriple(potentialPos, RoomFeature.FLOOR.getState(), true);
+                        for (Integer plane : RoomsController.roomsPlanes) {
+                            if (!(potentialPos.getY() < plane + RoomsConfig.get().defaultRoomSize.y) && !(potentialPos.getY() > plane - RoomsConfig.get().defaultRoomSize.y)) return new BlockPosStateBoolTriple(potentialPos, RoomFeature.FLOOR.getState(), true);
+                        }
+                    }
                     return new BlockPosStateBoolTriple(potentialPos, RoomFeature.FLOOR.getState(), true);
-
                 }
 
             }
@@ -136,6 +224,7 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
                 origin.offset(size.x*-1, size.y-1, size.z*-1))) {
 
             if (!level.getBlockState(pos).is(getStateAt(pos.immutable()).getBlock()) && !getStateAt(pos.immutable()).is(Blocks.AIR)) {
+                //Spreadrooms.LOGGER.info("FALSE " + pos + " " + level.getBlockState(pos));
                 return false;
             }
         }
@@ -156,26 +245,6 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
                 if (pos.getY() == origin.getY() + size.y && !features.contains(RoomFeature.NO_CEILING)) return RoomFeature.MULTILIGHT.getState();
             }
 
-            if (features.contains(RoomFeature.BASEBOARDS) && ((pos.getX() == origin.getX()) || (pos.getX() == origin.getX() - size.x) || (pos.getZ() == origin.getZ()) || (pos.getZ() == origin.getZ() - size.z)) && pos.getY() == origin.getY() + 1) {
-                return RoomFeature.BASEBOARDS.getState();
-            }
-
-            if (features.contains(RoomFeature.S_WALL) && pos.getX() == origin.getX()) {
-                return RoomFeature.S_WALL.getState();
-            }
-
-            if (features.contains(RoomFeature.E_WALL) && pos.getZ() == origin.getZ()) {
-                return RoomFeature.E_WALL.getState();
-            }
-
-            if (features.contains(RoomFeature.W_WALL) && pos.getZ() == origin.getZ() - size.z) {
-                return RoomFeature.W_WALL.getState();
-            }
-
-            if (features.contains(RoomFeature.N_WALL) && pos.getX() == origin.getX() - size.x) {
-                return RoomFeature.N_WALL.getState();
-            }
-
         }
 
         if (pos.getY() == origin.getY()) {
@@ -185,16 +254,6 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
             return RoomFeature.FLOOR.getState();
         }
 
-        if ( (pos.getZ() == origin.getZ() || pos.getZ() == origin.getZ() - size.z) || (pos.getX() == origin.getX() || pos.getX() == origin.getX() - size.x)) {
-            if (!features.isEmpty()) {
-                if (features.contains(RoomFeature.MOSAIC)) return RoomFeature.MOSAIC.getState();
-                if (features.contains(RoomFeature.BAMBOO)) return RoomFeature.BAMBOO.getState();
-                if (features.contains(RoomFeature.GREEN)) return RoomFeature.GREEN.getState();
-                if (features.contains(RoomFeature.SMOOTH)) return RoomFeature.SMOOTH.getState();
-            }
-            return RoomFeature.WALL.getState();
-        }
-
         if (pos.getY() == origin.getY() + size.y) {
             if (!features.isEmpty()) {
                 if (features.contains(RoomFeature.NO_CEILING)) return RoomFeature.NO_CEILING.getState();
@@ -202,8 +261,61 @@ public record Room(BlockPos origin, Size size, List<RoomFeature> features) {
             return RoomFeature.CEILING.getState();
         }
 
-        return Blocks.AIR.defaultBlockState();
+        if (RoomsConfig.get().connectRooms && !((pos.getX() == origin.getX() - size.x && pos.getZ() == origin.getZ()) || (pos.getX() == origin.getX() && pos.getZ() == origin.getZ() - size.z) || (pos.getX() == origin.getX() && pos.getZ() == origin.getZ()) || (pos.getX() == origin.getX() - size.x && pos.getZ() == origin.getZ() - size.z))) {
+            List<BlockPos> neighborBlocks = new ArrayList<>(getNeighborBlocks());
+            if (!neighborBlocks.isEmpty() && neighborBlocks.contains(pos)) return RoomFeature.NONE.getState();
+        }
 
+        if ((pos.getZ() == origin.getZ() || pos.getZ() == origin.getZ() - size.z) || (pos.getX() == origin.getX() || pos.getX() == origin.getX() - size.x)) {
+            if (!features.isEmpty()) {
+                if (features.contains(RoomFeature.BASEBOARDS) && pos.getY() == origin.getY() + 1) return RoomFeature.BASEBOARDS.getState();
+                if (features.contains(RoomFeature.MOSAIC)) return RoomFeature.MOSAIC.getState();
+                if (features.contains(RoomFeature.BAMBOO)) return RoomFeature.BAMBOO.getState();
+                if (features.contains(RoomFeature.GREEN)) return RoomFeature.GREEN.getState();
+                if (features.contains(RoomFeature.SMOOTH)) return RoomFeature.SMOOTH.getState();
+
+                //remove corners from the empty walls
+                if (!((pos.getX() == origin.getX() - size.x && pos.getZ() == origin.getZ()) || (pos.getX() == origin.getX() && pos.getZ() == origin.getZ() - size.z) || (pos.getX() == origin.getX() && pos.getZ() == origin.getZ()) || (pos.getX() == origin.getX() - size.x && pos.getZ() == origin.getZ() - size.z))) {
+                    if (features.contains(RoomFeature.S_WALL) && pos.getZ() == origin.getZ()) return RoomFeature.S_WALL.getState();
+                    if (features.contains(RoomFeature.E_WALL) && pos.getX() == origin.getX()) return RoomFeature.E_WALL.getState();
+                    if (features.contains(RoomFeature.W_WALL) && pos.getX() == origin.getX() - size.z) return RoomFeature.W_WALL.getState();
+                    if (features.contains(RoomFeature.N_WALL) && pos.getZ() == origin.getZ() - size.x) return RoomFeature.N_WALL.getState();
+                }
+            }
+
+            return RoomFeature.WALL.getState();
+        }
+
+        return RoomFeature.NONE.getState();
+
+    }
+
+    private List<BlockPos> getNeighborBlocks() {
+
+        List<BlockPos> neighborBlocks = new ArrayList<>();
+
+        List<Room> allRooms = new ArrayList<>();
+        allRooms.addAll(RoomsController.rooms);
+        allRooms.addAll(RoomsController.newRooms);
+        allRooms.addAll(RoomsController.completeRooms);
+        for (Room room : RoomsController.rooms) {
+
+            for (BlockPos pos : BlockPos.betweenClosed(origin, origin.offset(size.x*-1, size.y-1, 0))) {
+                for (Room allRoom : allRooms) { if (room != allRoom && allRoom.contains(pos.relative(Direction.SOUTH))) neighborBlocks.add(pos.immutable()); }
+            }
+            for (BlockPos pos : BlockPos.betweenClosed(origin, origin.offset(0, size.y-1, size.z*-1))) {
+                for (Room allRoom : allRooms) { if (room != allRoom && allRoom.contains(pos.relative(Direction.EAST))) neighborBlocks.add(pos.immutable()); }
+            }
+            for (BlockPos pos : BlockPos.betweenClosed(origin.offset(0, 0, size.z*-1), origin.offset(size.x*-1, size.y-1, size.z*-1))) {
+                for (Room allRoom : allRooms) { if (room != allRoom && allRoom.contains(pos.relative(Direction.NORTH))) neighborBlocks.add(pos.immutable()); }
+            }
+            for (BlockPos pos : BlockPos.betweenClosed(origin.offset(size.x*-1, 0, 0), origin.offset(size.x*-1, size.y-1, size.z*-1))) {
+                for (Room allRoom : allRooms) { if (room != allRoom && allRoom.contains(pos.relative(Direction.WEST))) neighborBlocks.add(pos.immutable()); }
+            }
+
+        }
+
+        return neighborBlocks;
     }
 
     private static boolean canFit(BlockPos origin, Size roomSize) {
