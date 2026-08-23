@@ -4,10 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import cool.place.Spreadrooms;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.level.block.state.BlockState;
 
 import java.io.*;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -34,7 +32,7 @@ public class RoomsConfig {
     public boolean roomBlocking = true;
     public Room.Size maxRoomSize = new Room.Size(8, 6, 8);
 
-    public Map<RoomFeature, String> featureStates = new LinkedHashMap<>();
+    public Map<RoomFeatureEnum, String> featureStates = new LinkedHashMap<>();
 
     private static RoomsConfig INSTANCE;
 
@@ -65,7 +63,7 @@ public class RoomsConfig {
             } catch (IOException e) { Spreadrooms.LOGGER.error("Could not load config file!", e); roomsConfig = new RoomsConfig(); }
         }
 
-        for (RoomFeature feature : RoomFeature.values()) {
+        for (RoomFeatureEnum feature : RoomFeatureEnum.values()) {
             roomsConfig.featureStates.putIfAbsent(feature, BuiltInRegistries.BLOCK.getKey(feature.getDefaultState().getBlock()).toString());
         }
 

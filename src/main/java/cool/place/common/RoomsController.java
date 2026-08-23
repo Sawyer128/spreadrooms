@@ -58,12 +58,12 @@ public class RoomsController {
 
             Spreadrooms.LOGGER.info("Origin created at " + origin.getX() + " " + origin.getY() + " " + origin.getZ());
 
-            List<RoomFeature> originFeatures = new ArrayList<>();
-            originFeatures.add(RoomFeature.LIGHT);
+            List<RoomFeatureEnum> originFeatures = new ArrayList<>();
+            originFeatures.add(RoomFeatureEnum.LIGHT);
             rooms.add(new Room(origin, RoomsConfig.get().defaultRoomSize, originFeatures));
 
             if (overworld != null) {
-                overworld.setBlock(origin, RoomFeature.FLOOR.getState(), 3);
+                overworld.setBlock(origin, RoomFeatureEnum.FLOOR.getState(), 3);
             }
 
         }
@@ -258,7 +258,7 @@ public class RoomsController {
                 else if (room.contains(spreadToPos) && room.isComplete(level)) { completeRooms.add(room); searchViaRoom(level, pos, completeRooms, completeBlocks); }
             }
 
-            rooms.add(new Room(pos, Room.resizeToBounds(pos, new Room.Size(5, 5, 5), rooms), RoomFeature.NONE));
+            rooms.add(new Room(pos, Room.resizeToBounds(pos, new Room.Size(5, 5, 5), rooms), RoomFeatureEnum.NONE));
             return pos;
 
         }
@@ -308,7 +308,7 @@ public class RoomsController {
 
                 }
 
-                Room newRoom = new Room(pos, Room.resizeToBounds(pos, new Room.Size(5, 5, 5), rooms), RoomFeature.NONE);
+                Room newRoom = new Room(pos, Room.resizeToBounds(pos, new Room.Size(5, 5, 5), rooms), RoomFeatureEnum.NONE);
                 rooms.add(newRoom);
                 return new BlockStatePosPair(newRoom.getStateAt(potentialPos), potentialPos);
 
